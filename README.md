@@ -33,7 +33,7 @@ namespace base_hooks {
 }
 ```
 
-This is how u edit the function to do what u wanna do:
+This is how you can edit the hook to make the function do what you want to do:
 
 ```cpp
 bool __fastcall base_hooks::hook_a( __int64 rcx, __int64 rdx ) // change based on how many args u have on ur hooked function
