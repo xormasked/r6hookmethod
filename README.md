@@ -2,52 +2,58 @@
 Hooking method using minhook and spoof_call
 
 
-how to use
+
+Usage
 
 ```cpp
+namespace base_calls {
 
-namespace calls {
-inline bool ( __fastcall* server_position_manager )( __int64, __int64 ) = nullptr;
-inline void ( __fastcall* pawn_action )( Scimitar::pawn*, __int64 ) = nullptr;
+    inline bool( __fastcall* hook_a )( __int64, __int64 ) = nullptr; // original function pointer set by minhook.
+
 }
 
-namespace hooks {
-inline void* rva( uintptr_t offset )
-{
-    return reinterpret_cast< void* >( utils::memory::image_base + offset );
-}
+namespace base_hooks {
 
-inline uintptr_t local_pawn_cached = 0;
-bool __fastcall server_position_manager( __int64 rcx, __int64 rdx );
-void __fastcall pawn_action( Scimitar::pawn* pawn, __int64 action );
-inline void* server_position_hook_target = nullptr;
-inline void* pawn_action_hook_target = nullptr;
-inline bool pawn_action_hook_enabled = false;
+    bool __fastcall hook_a( __int64 rcx, __int64 rdx ); // match with the function ur hooking.
 
-inline void init( )
-{
-    server_position_hook_target = rva( 0xFB03A0 );
-    utils::simple_hook_manager::create( server_position_hook_target, &hooks::server_position_manager, &calls::server_position_manager );
-    pawn_action_hook_target = rva( 0xF93010 );
-    pawn_action_hook_enabled = utils::simple_hook_manager::create( pawn_action_hook_target, &hooks::pawn_action, &calls::pawn_action );
-}
+    inline void init( )
+    {
 
-inline void uninit( )
-{
-    if ( server_position_hook_target ) {
-        utils::simple_hook_manager::remove( server_position_hook_target );
-        server_position_hook_target = nullptr;
+        const auto hook_a_target = reinterpret_cast< void* >( utils::memory::image_base + 0x0 ); // replace 0x0 with ur hook rva.
+
+        utils::simple_hook_manager::create( hook_a_target, &base_hooks::hook_a, &base_calls::hook_a ); // install detour and save original into base_calls::hook_a.
     }
-    if ( pawn_action_hook_target ) {
-        utils::simple_hook_manager::remove( pawn_action_hook_target );
-        pawn_action_hook_target = nullptr;
-    }
-    pawn_action_hook_enabled = false;
-}
-}
 
-namespace hk {
-inline void init( ) { hooks::init( ); }
-inline void uninit( ) { hooks::uninit( ); }
+    inline void uninit( )
+    {
+        const auto hook_a_target = reinterpret_cast< void* >( utils::memory::image_base + 0x0 ); // remember to replace 0x0 with the same hook rva as hook_a_target.
+
+        utils::simple_hook_manager::remove( hook_a_target ); // remove on unload
+    }
+}
+```
+
+this is how u can edit the function to do what you want it to do
+
+```cpp
+bool __fastcall base_hooks::hook_a( __int64 rcx, __int64 rdx ) // change based on how many args u have on ur hooked function
+{
+    if ( !base_calls::hook_a || !utils::trampoline_jmp )
+        return false;
+
+    const bool ret = utils::spoof_call<bool>( base_calls::hook_a, rcx, rdx ); // USE SPOOFCALL TO CALL THE FUNCTION!!!!!, 99% of the time you WILL crash if you do not.
+
+    // ex 1: write to memory using an argument as a base address, or change arg if u want to.
+    if ( rdx )
+    {
+        WPM<float>( rdx + 0x10, 0.f ); // change offset/value for ur use case.
+    }
+
+    // ex 2: print argument values for quick debug, or to get around encryption.
+    std::printf( "[hook_a] arg0=0x%llX arg1=0x%llX\n",
+        static_cast< unsigned long long >( rcx ),
+        static_cast< unsigned long long >( rdx ) );
+
+    return ret;
 }
 ```
